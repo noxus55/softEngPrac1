@@ -4,7 +4,7 @@
 #include <time.h>
 
 /*
-The main isue in this program is with memory allocation, the logic of the program works when tested indivdually.
+The main isue in this program is with memory allocation, the logic of the program works when tested indivdually by function.
 the use of structs do not return to the main function in very specific cases
 */
 
