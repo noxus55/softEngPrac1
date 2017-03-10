@@ -1,0 +1,533 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <time.h>
+
+/*
+The main isue in this program is with memory allocation, the logic of the program works when tested indivdually.
+the use of structs do not return to the main function in very specific cases
+*/
+
+struct player{
+	char name[20];
+	int num; 		//declare player struct globally
+	int type;
+	int life;
+	int smartness;
+	int strength;
+	int tmpStrength;
+	int magicSkill;
+	int tmpMagicSkill;
+	int luck;
+	int dexterity;
+	int tmpDexterity;
+	int slotNum;
+} player_struct;
+
+void getPlayer(struct player *playerGet, int playerNum);
+
+void assignStats(struct player *playerStat);
+
+void boardSlots(int (*gameBoard)[20], struct player (*playerBoard)[20],int numSlots,  struct player *nullPlayer);
+
+void playerSlots(struct player (*playerBoard)[20], int numPlayers, int numSlots, struct player *nullPlayer, struct player *p1, struct player *p2, struct player *p3, struct player *p4, struct player *p5, struct player *p6);
+
+int checkIfMove(struct player (*playerBoard)[20], int pIndex, int boardSize);
+
+int checkIFAttack(struct player (*playerBoard)[20], int pIndex, int boardSize, int adjacentPlayer);
+
+void checkSlot(struct player *slotPlayer, int (*gameBoard)[20], int pIndex);		//level = 1 ; hill = 2 ; city = 3;
+
+void setStat(struct player *slotPlayer, int slotType);
+
+void attackPlayer(struct player *attackPlayer, struct player (*playerBoard)[20], int direction, int pIndex);
+
+void movePlayer(struct player *movePlayer, struct player (*playerBoard)[20], struct player nullPlayer, int direction, int pIndex);
+	
+
+
+int main(void)
+{
+	int numPlayers, activePlayers, numSlots, i, moveType, attackType;
+
+	struct player *player1; 
+	struct player *player2;
+	struct player *player3;
+	struct player *player4;
+	struct player *player5;
+	struct player *player6;
+	struct player *nullPlayer;		//null player used in aboard array to indicate empty slot, guven player type of 5
+
+	player1 = malloc(sizeof(struct player));		//allocate memory for struct 	
+	player2 = malloc(sizeof(struct player));
+	player3 = malloc(sizeof(struct player));
+	player4 = malloc(sizeof(struct player));
+	player5 = malloc(sizeof(struct player));
+	player6 = malloc(sizeof(struct player));
+	nullPlayer = malloc(sizeof(struct player));
+
+	nullPlayer->type = 5;
+	
+	printf("How many players would you like in the game? (max 6): ");		//get num players
+	scanf("%d", &numPlayers);
+
+	activePlayers = numPlayers;
+
+	while(numPlayers < 2 || numPlayers >6)		
+	{
+		printf("\n\nNumber of players must be at least 2, but at most 6: ");		//type
+		scanf("%d", &numPlayers);
+	} 
+
+	for(i = 1; i <= numPlayers; i++)	//making the appropriate number of player structs
+	{
+		switch(i){
+			case 1 : getPlayer(player1, i); break;		//get player name and type
+			case 2 : getPlayer(player2, i); break;
+			case 3 : getPlayer(player3, i); break;
+			case 4 : getPlayer(player4, i); break;
+			case 5 : getPlayer(player5, i); break;
+			case 6 : getPlayer(player6, i); break;
+			default : break;
+		}
+	}
+
+	printf("\n\nHow many slots would you like? (min = number of players, max = 20): ");		//get slot ammount
+	scanf("%d", &numSlots);
+
+	while(numSlots < numPlayers || numSlots > 20)
+	{
+		printf("\nPlease enter a valid amount of slots (numPlayers - 20): ");		//guard 
+		scanf("%d", &numSlots);
+	}
+
+	int gameBoard[numSlots];		//make game board
+
+	struct player (*playerBoard)[numSlots];		//make array of struct pointers
+
+	playerBoard = calloc(numSlots, sizeof(struct player));	//allocate memory 
+
+	boardSlots(&gameBoard, playerBoard, numSlots, nullPlayer);		//allocate board slot type
+
+	playerSlots(playerBoard, numPlayers, numSlots, nullPlayer, player1, player2, player3, player4, player5, player6);	//alloctate players to slots randomly
+	
+	for(i = 0; i < numSlots; i++)
+	{
+		if(playerBoard[i]->type != 5)	//if not nullPlayer
+		{	
+			int choice;
+
+			moveType = checkIfMove(playerBoard, i, numSlots);	// 1 is no move 2 is move back 3 is move forward 4 is choice
+			printf("%d", moveType);
+
+			attackType = checkIFAttack(playerBoard, i, numSlots, moveType);	//4 nothing 3 choice 2 attack (i - 1) 1 attack (i +1)	
+
+			printf("\n\nPlayer %d's move:", playerBoard[i]->num);	
+			printf("\nTo make a choice, please select the appropriate number: ");
+
+			if(moveType == 2)
+			{
+				printf("\n(1) Move Backwards");
+			}
+			else if(moveType == 3)
+			{
+				printf("\n(2) Move Forwards");
+			}
+			else if(moveType == 4)
+			{
+				printf("\n(1) Move Backwards");
+				printf("\n(2) Move Forwards");
+			}
+
+			if(attackType == 1)
+			{
+				printf("\n(3) Attack Backwards");
+			}
+			else if(attackType == 2)
+			{
+				printf("\n(4) Attack Forwards");
+			}
+			else if(attackType == 3)
+			{
+				printf("\n(3) Attack Backwards");
+				printf("\n(4) Attack Forwards");
+			}
+
+			printf("\n(5) Do Nothing\n\n");
+
+			scanf("%d", &choice);
+
+			checkSlot(playerBoard[i], &gameBoard, i);
+
+			if(choice == 1)
+			{
+				movePlayer(playerBoard[i], playerBoard, *nullPlayer, 1, i);	//move backward
+			}
+			else if(choice == 2)
+			{
+				movePlayer(playerBoard[i], playerBoard, *nullPlayer, 2, i);	//move forward
+			}
+			else if(choice == 3)
+			{
+				attackPlayer(playerBoard[i], playerBoard, 1, i); //attack backward
+			}
+			else if(choice == 4)
+			{
+				attackPlayer(playerBoard[i], playerBoard, 2, i); //attack forward
+			} 
+			else if(choice == 5)
+			{
+				printf("\nYou have forfeited your move.");
+			}
+			
+			checkSlot(playerBoard[i], &gameBoard, i);
+
+			for(int i = 0; i < numSlots; i++)
+			{
+				if(playerBoard[i]->type != 5)
+				{
+
+					printf("%s", playerBoard[i]->name);
+
+					switch(playerBoard[i]->type){
+						case 1 : printf(" (Elf, "); break;
+						case 2 : printf(" (Human, "); break;		//printing stauses of player
+						case 3 : printf(" (Ogre, "); break;
+						case 4 : printf(" (Wizard, "); break;
+						default : break;
+					}
+				}
+
+				printf("%d)", playerBoard[i]->life);
+			}
+		}
+				
+	}			
+			
+	
+
+	return 0;
+
+}
+
+void getPlayer(struct player *playerGet, int playerNum)
+{
+	char text[20];
+
+	printf("\n\nPlease select a type for player %d by entering a number:\n", playerNum);		//get player type
+	printf("(1) Elf\n(2) Human\n(3) Ogre\n(4) Wizard\nEnter the choice: ");
+	scanf("%d", &playerGet->type);
+
+	while(playerGet->type < 1 || playerGet->type > 4)
+	{
+		printf("\n\nYou must enter a valid choice(1-4): ");
+		scanf("%d", &playerGet->type);
+	}
+
+	playerGet->life = 100;
+	playerGet->tmpStrength = 0;
+	playerGet->tmpMagicSkill = 0;
+	playerGet->tmpDexterity = 0;
+	playerGet->num = playerNum;		//see struct for info
+
+	printf("\n\nPlease enter a name for the player: ");			//mget name of player
+	scanf("%s", &text);
+
+	strcpy(playerGet->name, text);
+
+	assignStats(playerGet);
+}
+
+void assignStats(struct player *playerStat)
+{
+	time_t t;
+	srand((unsigned) time(&t));	
+
+	if(playerStat->type == 1)
+	{
+		playerStat->luck = rand() % 41 + 60;	//[100,60]	//stat for elf
+		playerStat->smartness = rand() % 31 + 70;	//[100,70]
+		playerStat->strength = rand() % 50 + 1;	//[50,1]
+		playerStat->magicSkill = rand() % 29 + 51;	//(50,80)
+	    playerStat->dexterity = rand() % 100 + 1;	//[100,1] rand() % (max - min + 1) + min
+	}
+	else if(playerStat->type == 2)
+	{
+		time_t t;						//call stat change for tile detection thinger CODE
+		srand((unsigned) time(&t));
+
+		int attributeList[5] = {1, 2, 3, 4, 5}, i, j, tmp, x, n = 296, total = 300;
+
+		for(i = 4; i > 0; i--)
+		{
+			j = rand() % i + 0;
+
+			tmp = attributeList[i];
+			attributeList[i] = attributeList[j];		//shuffle the player numbers to be shuffled into struct array game board
+			attributeList[j] = tmp;
+		}
+
+		j = 0;
+
+		while(total < 300)
+		{
+			total = 0;
+
+			total += playerStat->smartness = rand() % 300 + 1;
+			total += playerStat->luck = rand() % 300 + 1;
+			total += playerStat->strength = rand() % 300 + 1;	// stat for human
+			total += playerStat->magicSkill = rand() % 300 + 1;
+	   		total += playerStat->dexterity = rand() % 300 + 1;
+		}
+
+	}
+	else if(playerStat->type == 3)
+	{
+		playerStat->smartness = rand() % 20;
+		playerStat->luck = rand() % ((50 - playerStat->smartness) + 1);		//stats for ogre
+		playerStat->strength = rand() % 21 + 80;
+		playerStat->magicSkill = 0;
+	    playerStat->dexterity = rand() % 21 + 80;
+	}
+	else
+	{
+		playerStat->luck = rand() % 51 + 50;		//stats for wizard
+		playerStat->smartness = rand() % 11 + 90;
+		playerStat->strength = rand() % 20 + 1;
+		playerStat->magicSkill = rand() % 21 + 80;
+	    playerStat->dexterity = rand() % 100 + 1;
+	}
+}
+
+void boardSlots(int (*gameBoard)[20], struct player (*playerBoard)[20], int numSlots,  struct player *nullPlayer)
+{
+	time_t t;
+	srand((unsigned) time(&t));	
+
+	for(int i = 0; i < numSlots; i++)
+	{
+		(*gameBoard)[i] = rand()% 3 + 1;		//fill slot type into slot board randomly (1 - 3); 1 level ground, 2 hill, 3 city
+		(*playerBoard)[i] = *nullPlayer;
+	}
+}
+
+void playerSlots(struct player (*playerBoard)[20], int numPlayers, int numSlots, struct player *nullPlayer, struct player *p1, struct player *p2, struct player *p3, struct player *p4, struct player *p5, struct player *p6)
+{ 
+	time_t t;						
+	srand((unsigned) time(&t));
+
+	int playerIndex[numPlayers], i, j, tmp;
+
+	for(i = 0; i < numPlayers; i++)
+	{
+		playerIndex[i] = i + 1;			//create list of player numbers that are in play
+	}
+
+	for(i = numPlayers - 1; i > 0; i--)
+	{
+		j = rand() % i + 0;
+
+		tmp = playerIndex[i];
+		playerIndex[i] = playerIndex[j];		//shuffle the player numbers to be shuffled into struct array game board
+		playerIndex[j] = tmp;
+	}
+
+	for(i = 0; i < numPlayers; i++)			// go through the gameboard and place the layers in randomly assuming no other player already occupies that space
+	{
+		TRYAGAIN: tmp = rand() % numSlots;
+
+		if((*playerBoard)[tmp].type == nullPlayer->type)			
+		{
+			if(playerIndex[i] == 1)
+			{
+				(* playerBoard)[tmp] = *p1;
+				p1->slotNum = tmp;
+			}
+			else if(playerIndex[i] == 2)
+			{
+				(*playerBoard)[tmp] = *p2;
+				p2->slotNum = tmp;
+			}
+			else if(playerIndex[i] == 3)
+			{
+				(*playerBoard)[tmp] = *p3;
+				p3->slotNum = tmp;
+			}
+			else if(playerIndex[i] == 4)
+			{
+				(*playerBoard)[tmp] = *p4;
+				p4->slotNum = tmp;
+			}
+			else if(playerIndex[i] == 5)
+			{
+				(*playerBoard)[tmp] = *p5;
+				p5->slotNum = tmp;
+			}
+			else if(playerIndex[i] == 6)
+			{
+				(*playerBoard)[tmp] = *p6;
+				p6->slotNum = tmp;
+			}
+		}
+		else
+		{
+			goto TRYAGAIN;
+		}
+	}
+}
+
+int checkIfMove(struct player (*playerBoard)[20], int pIndex, int boardSize)	// 1 is no move 2 is move back 3 is move forward 4 is choice
+{
+	boardSize -= 1;
+	if((pIndex == 0 && playerBoard[pIndex + 1]->type != 5) || (playerBoard[pIndex + 1]->type != 5 && playerBoard[pIndex - 1]->type != 5) || (pIndex == boardSize && playerBoard[pIndex - 1]->type != 5))
+	{
+		return 1;
+	}
+	else if((pIndex == boardSize && playerBoard[pIndex - 1]->type == 5) || (playerBoard[pIndex + 1]->type != 5 && playerBoard[pIndex - 1]->type == 5))
+	{
+		return 2;
+	}
+	else if((pIndex == 0 && playerBoard[pIndex + 1]->type == 5) || (playerBoard[pIndex + 1]->type == 5 && playerBoard[pIndex - 1]->type != 5))
+	{
+		return 3;					//the function checks for the edge of the board and adjacent players, since no player can occupy the same slot of another player and so cannot jump over that player
+	}
+	else
+	{
+		return 4;
+	}
+}
+
+int checkIFAttack(struct player (*playerBoard)[20], int pIndex, int boardSize, int adjacentPlayer)
+{
+	boardSize -= 1;
+
+	if(pIndex == 0 && adjacentPlayer == 1)		//function checks players positon in array rlative to other players and checks the directio(s) if any they can attack in
+	{
+		return 1;
+	}
+	else if(pIndex == boardSize && adjacentPlayer == 1)
+	{
+		return 2;
+	}
+	else if((pIndex != 0 || pIndex != boardSize) && adjacentPlayer == 2)
+	{
+		return 1;
+	}
+	else if((pIndex != 0 || pIndex != boardSize) && adjacentPlayer == 3)
+	{
+		return 2;
+	}
+	else if((pIndex != 0 || pIndex != boardSize) && adjacentPlayer == 1)
+	{
+		return 3;
+	}
+	else
+	{
+		return 4;	
+	}
+}
+
+void attackPlayer(struct player *attackPlayer, struct player (*playerBoard)[20], int direction, int pIndex)
+{
+	struct player *defendPlayer;	
+
+	if(direction == 1)				
+	{
+		defendPlayer = playerBoard[pIndex - 1];		//functiuon compares defending player's strength and adjusts life points accordingly
+	}
+	else
+	{
+		defendPlayer = playerBoard[pIndex + 1];
+	}
+
+	if(defendPlayer->tmpStrength <= 70)
+	{
+		defendPlayer->life = defendPlayer->life - (0.5 * defendPlayer->tmpStrength);
+	}
+	else if(defendPlayer->tmpStrength > 70)
+	{
+		attackPlayer->life = attackPlayer->life - (0.3 * defendPlayer->tmpStrength);
+	}
+}
+
+void movePlayer(struct player *movePlayer, struct player (*playerBoard)[20], struct player nullPlayer, int direction, int pIndex)
+{
+	int newIndex;
+	if(direction == 1)
+	{
+		newIndex = pIndex - 1;
+	}
+	else
+	{
+		newIndex = pIndex + 1;
+	}
+
+	movePlayer->slotNum = newIndex;
+
+	(*playerBoard)[newIndex] = *movePlayer;
+	(*playerBoard)[pIndex] = nullPlayer;
+}
+
+void checkSlot(struct player *slotPlayer, int (*gameBoard)[20], int pIndex)
+{
+	slotPlayer->slotNum = *gameBoard[pIndex];
+
+	if(slotPlayer->slotNum == 1)
+	{
+		//level ground
+	}
+	else if(slotPlayer->slotNum == 2)
+	{
+		setStat(slotPlayer, slotPlayer->slotNum);		//hill
+	}
+	else if(slotPlayer->slotNum == 3)
+	{
+		setStat(slotPlayer, slotPlayer->slotNum);	//city
+	}
+}
+
+void setStat(struct player *slotPlayer, int slotType)	//cant't go below 0 (ie  not negative)
+{
+	slotPlayer->tmpStrength = slotPlayer->strength;
+	slotPlayer->tmpDexterity = slotPlayer->dexterity;
+	slotPlayer->tmpMagicSkill = slotPlayer->magicSkill;
+
+	if(slotType == 2)
+	{
+		if(slotPlayer->dexterity < 50 )
+		{
+			slotPlayer->tmpStrength -= 10;
+		}
+		else if(slotPlayer->dexterity >= 60)
+		{
+			slotPlayer->tmpStrength += 10;
+		}
+	}
+	else if(slotType == 3)
+	{
+		if(slotPlayer->smartness > 60)
+		{
+			slotPlayer->tmpMagicSkill += 10;
+		}
+		else if(slotPlayer->smartness <= 50)
+		{
+			slotPlayer->tmpDexterity -= 10;
+		}
+	}
+
+	if(slotPlayer->tmpStrength < 0)
+	{
+		slotPlayer->tmpStrength = 0;
+	}
+
+	if(slotPlayer->tmpDexterity < 0)
+	{
+		slotPlayer->tmpDexterity = 0;
+	}
+	
+	if(slotPlayer->tmpMagicSkill < 0)
+	{
+		slotPlayer->tmpMagicSkill = 0;
+	}
+
+}
