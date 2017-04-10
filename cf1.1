@@ -1,231 +1,365 @@
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
+#include <stdbool.h>
+
+#define BOARD_SIZE 7
+#define REQ_DISTANCE 3
+
+struct slot ** board;
 
 struct player{
 	char name[20];
-	int num; 		//replace all instances with "player.name"
-	int type;
-	int life;
+	int num; 		//declare player struct globally
+	int type;											//player type : set to 8 if remove from game OR dead
+	int slotType;
+	int row;
+	int column;
+	int life_points;
 	int smartness;
 	int strength;
-	int tmpStrength;
 	int magicSkill;
-	int tmpMagicSkill;
 	int luck;
 	int dexterity;
-	int tmpDexterity;
-	int slotNum;
-};
+} player_struct;
+
+struct slot{
+	//row number
+	int row;
+	//column number
+	int column;
+
+	int slotType;
+
+	int playerIndexInArray[6];		//holds player's location in player playerIndexInArray     //use calloc to replace [6]
+
+	// adjacent left slot
+	struct slot *left;
+	// adjacent right slot
+	struct slot *right;
+	// adjacent up slot
+	struct slot *up;
+	// adjacent down slot
+	struct slot *down;
+}slot;
+
+void createBoard(int boardSize, struct slot **upLeft, struct slot **upRight, struct slot **downLeft, struct slot **downRight);
 
 void getPlayer(struct player *playerGet, int playerNum);
 
 void assignStats(struct player *playerStat);
 
-void boardSlots(int (*gameBoard)[20], struct player (*playerBoard)[20],int numSlots,  struct player *nullPlayer);
+void boardSlots(int numPlayers);
 
-void playerSlots(struct player (*playerBoard)[20], int numPlayers, int numSlots, struct player *nullPlayer, struct player *p1, struct player *p2, struct player *p3, struct player *p4, struct player *p5, struct player *p6);
-
-int checkIfMove(struct player playerBoard[20], int pIndex, int boardSize);
-
-int checkIFAttack(struct player playerBoard[20], int pIndex, int boardSize, int adjacentPlayer);
-
-int findTarget(struct player playerBoard[20], int pIndex, int boardSize);
-
-void checkSlot(struct player *slotPlayer, int (*gameBoard)[20], int pIndex);		//level = 1 ; hill = 2 ; city = 3;
+void playerSlots(int numPlayers, struct player playerArray[]);
 
 void setStat(struct player *slotPlayer, int slotType);
 
-void attackPlayer(struct player *attackPlayer, struct player (*playerBoard)[20], int direction, int pIndex);
+void checkIfMove(struct player *currPlayer, bool *up, bool *down, bool *left, bool *right, int numPlayers);
 
-void movePlayer(struct player *movePlayer, struct player (*playerBoard)[20], struct player nullPlayer, int direction, int pIndex);
+void resetStat(struct player *slotPlayer);
 
-void findDead(struct player (*playerBoard)[20], struct player *nullPlayer, int numSlots);
-
-void removePlayer(struct player (*playerBoard)[20], struct player *nullPlayer, int playerPosition);
-
-void printPlayerStatus(struct player (*playerBoard)[20], int numSlots);
-
-void findWinner(struct player (*playerBoard)[20], int numSlots);
-
-void printMenu(int moveType, int attackType);
+void movePlayer(struct player *player, int moveChoice, int playerNum);
 
 int main(void)
 {
-	int numPlayers, activePlayers, numSlots, i, moveType, attackType;
 
-	struct player player1;
-	struct player player2;
-	struct player player3;
-	struct player player4;
-	struct player player5;
-	struct player player6;
-	struct player nullPlayer;
+	int row, column;
 
-	nullPlayer.type = 5;
-	
-	printf("How many players would you like in the game? (max 6): ");
+	struct slot* currSlot = NULL;
+	struct slot *foundSlots;
+	bool explored[BOARD_SIZE][BOARD_SIZE];
+	int count = 0;
+
+	//pointer to slot (0,0)
+	struct slot *upLeft;
+
+	//pointer to slot (0,boardSize -1)
+	struct slot *upRight;
+
+	//pointer to slot (boardSize - 1, 0)
+	struct slot *downLeft;
+
+	//pointer to slot (boardSize - 1, boardSize -1)
+	struct slot *downRight;
+
+
+	//Creates the board
+	createBoard(BOARD_SIZE, &upLeft, &upRight, &downLeft, &downRight);
+
+	int numPlayers, activePlayers;
+
+	printf("How many players would you like in the game? (max 6): ");		//get num players
 	scanf("%d", &numPlayers);
 
 	activePlayers = numPlayers;
 
-	while(numPlayers < 2 || numPlayers >6)		//TESTIG PLAYER TYPE, CHANGE TO 1
+	while(numPlayers < 2 || numPlayers > 6)		
 	{
-		printf("\n\nNumber of players must be at least 2, but at most 6: ");
+		printf("\n\nNumber of players must be at least 2, but at most 6: ");		//type
 		scanf("%d", &numPlayers);
 	} 
 
-	for(i = 1; i <= numPlayers; i++)	//making the appropriate number of player structs
+	struct player playerArray[numPlayers];
+
+	for(int i = 0; i < numPlayers; i++)	//making the appropriate number of player structs
 	{
-		switch(i){
-			case 1 : getPlayer(&player1, i); break;
-			case 2 : getPlayer(&player2, i); break;
-			case 3 : getPlayer(&player3, i); break;
-			case 4 : getPlayer(&player4, i); break;
-			case 5 : getPlayer(&player5, i); break;
-			case 6 : getPlayer(&player6, i); break;
-			default : break;
-		}
+		getPlayer(&playerArray[i], i);
 	}
 
-	//printf("%d\n", player1.life);	//segment needs removal
-	//printf("%s", player1.name);
-	//printf("%d %d %d %d %d", player1.smartness, player1.strength, player1.magicSkill, player1.luck, player1.dexterity);
-
-	printf("\n\nHow many slots would you like? (min = number of players, max = 20): ");
-	scanf("%d", &numSlots);
-
-	while(numSlots < numPlayers || numSlots > 20)
+	printf("\n\n");
+	for(int i = 0; i < numPlayers; i++)
 	{
-		printf("\nPlease enter a valid amount of slots (numPlayers - 20): ");
-		scanf("%d", &numSlots);
+		printf("%d\n %d\n %d\n %d\n %d\n %d\n", playerArray[i].smartness, playerArray[i].strength, playerArray[i].magicSkill, playerArray[i].dexterity, playerArray[i].life_points, playerArray[i].luck);
+		printf("\n\n");
 	}
 
-	int gameBoard[numSlots];	//first row = player position?, second = slot type;
+	boardSlots(numPlayers);		//allocate board slot type
 
-	struct player playerBoard[numSlots];
+	playerSlots(numPlayers, playerArray);	//alloctate players to slots randomly
 
-	boardSlots(&gameBoard, &playerBoard, numSlots, &nullPlayer);
-
-	for(int y = 0; y < numSlots; y++){printf("%d ", gameBoard[y]);}		//print gameboard TEST
-
-	playerSlots(&playerBoard, numPlayers, numSlots, &nullPlayer, &player1, &player2, &player3, &player4, &player5, &player6);
-
-	printf("\n\n"); for(i=0;i<numSlots;i++){if(playerBoard[i].type != 5){printf("kaba %d hehe ", playerBoard[i].type);}}		//print player board TEST
-	
-	while(activePlayers != 1)
+		printf("\n\n");
+	for(int i = 0; i < numPlayers; i++)
 	{
-		for(i = 0; i < numSlots; i++)//if die, activeplayers-- and replace space with nullPlayer
-		{
-			if(playerBoard[i].type != 5)	//if not nullPlayer
+		printf("%d\n %d\n %d\n %d\n %d\n %d\n", playerArray[i].smartness, playerArray[i].strength, playerArray[i].magicSkill, playerArray[i].dexterity, playerArray[i].life_points, playerArray[i].luck);
+		printf("\n\n");
+	}
+
+		printf("\n");
+	for(int i = 0; i < BOARD_SIZE; i++)
+	{
+		for(int j = 0; j < BOARD_SIZE; j++)
+		{	
+			for(int c = 0; c < numPlayers; c++)
 			{
-				int choice;
-
-				moveType = checkIfMove(playerBoard, i, numSlots);	// 1 is no move 2 is move back 3 is move forward 4 is choice
-				printf("%d", moveType);
-
-				attackType = checkIFAttack(playerBoard, i, numSlots, moveType);	//4 nothing 3 choice 2 attack (i - 1) 1 attack (i +1)		//CODE find nearest player
-
-				printf("\n\nPlayer %d's move:", playerBoard[i].num);		//see struct for info
-				printf("\nTo make a choice, please select the appropriate number: ");
-
-				//printMenu(moveType, attackType);
-
-				//illusion of choice goes up there CODE				AND correct menu ALSO functions may be necessary	ALSO make sure no other values are put in
-				if(moveType == 2)
-				{
-					printf("\n(1) Move Backwards");
-				}
-				else if(moveType == 3)
-				{
-					printf("\n(2) Move Forwards");
-				}
-				else if(moveType == 4)
-				{
-					printf("\n(1) Move Backwards");
-					printf("\n(2) Move Forwards");
-				}
-
-				if(attackType == 1)
-				{
-					printf("\n(3) Attack Backwards");
-				}
-				else if(attackType == 2)
-				{
-					printf("\n(4) Attack Forwards");
-				}
-				else if(attackType == 3)
-				{
-					printf("\n(3) Attack Backwards");
-					printf("\n(4) Attack Forwards");
-				}
-
-				printf("\n(5) Do Nothing\n\n");
-
-				scanf("%d", &choice);
-
-				if(choice == 1)
-				{
-					movePlayer(&playerBoard[i], &playerBoard, nullPlayer, 1, i);	//move backward
-				}
-				else if(choice == 2)
-				{
-					movePlayer(&playerBoard[i], &playerBoard, nullPlayer, 2, i);	//move forward
-				}
-				else if(choice == 3)
-				{
-					attackPlayer(&playerBoard[i], &playerBoard, 1, i); //attack backward
-				}
-				else if(choice == 4)
-				{
-					attackPlayer(&playerBoard[i], &playerBoard, 2, i); //attack forward
-				} 
-				else if(choice == 5)
-				{
-					printf("\nYou have forfeited your move.");
-				}
-				
-				checkSlot(&playerBoard[i], &gameBoard, i);
-				printf("HWLP");
-			//	findDead(&playerBoard, &nullPlayer, numSlots);		not relevant to this assignment
-				printf("HEYOP");
-
-				for(int i = 0; i < numSlots; i++)
-				{
-					if(playerBoard[i].type != 5)
-				{
-				printf("%s", playerBoard[i].name);
-
-				switch(playerBoard[i].type){
-					case 1 : printf(" (Elf, "); break;
-					case 2 : printf(" (Human, "); break;
-					case 3 : printf(" (Ogre, "); break;
-					case 4 : printf(" (Wizard, "); break;
-					default : break;
-				}
-
-				printf("%d)", playerBoard[i].life);
+				printf("%d ", board[i][j].playerIndexInArray[c]);			//tesing
+			}
+			printf("  ");
 		}
+		printf("\n");
 	}
-				//printPlayerStatus(&playerBoard, numSlots);
-				
+
+		printf("\n\n");
+	for(int i = 0; i < BOARD_SIZE; i++)
+	{
+		for(int j = 0; j < BOARD_SIZE; j++)
+		{
+			printf("%d ", board[i][j].slotType);							//testing
+		}
+
+		printf("\n");
+	}
+
+		printf("\n\n");
+	for(int i = 0; i < numPlayers; i++)
+	{
+		printf("%d %d (%d,%d)", i, playerArray[i].slotType, playerArray[i].row, playerArray[i].column);			//testing
+
+		printf("\n");
+	}
+
+	bool live = true;
+	int round = 0;
+
+	while(live)
+	{
+		for(int loop = 0; loop < numPlayers; loop++)
+		{
+			if(playerArray[loop].type != 8)
+			{
+				int menuChoice, moveChoice, attackChoice;
+				bool up = false, down = false, left = false, right = false;
+
+				checkIfMove(&playerArray[loop], &up, &down, &left, &right, numPlayers);
+
+				printf("\n\nWould you like to :");
+				printf("\n1) Move");
+				scanf("%d", &menuChoice);
+
+				if(menuChoice == 1)
+				{
+					printf("\n\n");
+					if(up)
+					{
+						printf("\n1) Move up");		
+					}
+
+					if(down)
+					{
+						printf("\n2) Move down");
+					}
+
+					if(left)
+					{
+						printf("\n3) Move left");
+					}
+
+					if(right)
+					{
+						printf("\n4) Move right");
+					}
+					
+					scanf("%d", &moveChoice);
+
+					movePlayer(&playerArray[loop], moveChoice, loop);
+
+
+
+		printf("\n\n");
+	for(int i = 0; i < BOARD_SIZE; i++)
+	{
+		for(int j = 0; j < BOARD_SIZE; j++)
+		{	
+			for(int c = 0; c < numPlayers; c++)
+			{
+				printf("%d ", board[i][j].playerIndexInArray[c]);			//tesing
+			}
+			printf("  ");
+		}
+		printf("\n");
+	}
+
+		printf("\n\n");
+	for(int i = 0; i < BOARD_SIZE; i++)
+	{
+		for(int j = 0; j < BOARD_SIZE; j++)
+		{
+			printf("%d ", board[i][j].slotType);							//testing
+		}
+
+		printf("\n");
+	}
+
+		printf("\n\n");
+	for(int i = 0; i < numPlayers; i++)
+	{
+		printf("%d %d (%d,%d)", i, playerArray[i].slotType, playerArray[i].row, playerArray[i].column);			//testing
+
+		printf("\n");
+	}
+				}
 			}
 		}
 	}
+}
 
-	//findWinner(&playerBoard, numSlots);		not relevant to this assignment
+void createBoard(int boardSize, struct slot **upLeft, struct slot **upRight, struct slot **downLeft, struct slot **downRight){
 
-	return 0;
+	//The board is represented as a pointer of pointer to slots
+	//This allocates in memory the space for the pointers to each row of the board
+	board = malloc(boardSize * sizeof(struct slot *));
+
+
+	for(int i =0; i< boardSize; i++){
+		//This allocates in memory the space for the slots in each row of the board
+		board[i] = malloc(boardSize * sizeof(struct slot));
+
+		//For each slot it sets up the row and column number
+		for(int j=0;j < boardSize; j++){
+			board[i][j].row = i;
+			board[i][j].column = j;
+		}
+	}
+
+	//It sets up the adjacent slots for the slots that are
+	//not at the borders. These slots have 4 adjacent elements
+	for(int i =1; i< boardSize-1; i++){
+		for(int j=1;j < boardSize-1; j++){
+			board[i][j].up = &board[i-1][j];
+			board[i][j].right = &board[i][j+1];
+			board[i][j].down = &board[i+1][j];
+			board[i][j].left = &board[i][j-1];
+		}
+	}
+
+	//It sets up the adjacent slots for the slots that are
+	//in the first and the last row, except the slots at the edges.
+	//
+	for(int j = 1; j < boardSize -1; j++){
+		//It sets up the adjacent slots for the slots that are in the first row.
+		//These slots don't have an adjacent element on top of them
+		// because they are on the first row of the board
+		board[0][j].right = &board[0][j+1];
+		board[0][j].left = &board[0][j-1];
+		board[0][j].down = &board[1][j];
+		board[0][j].up = NULL;
+
+		//It sets up the adjacent slots for the slots that are in the last row.
+		//These slots don't have an adjacent element on down them
+		// because they are on the last row of the board
+		board[boardSize - 1][j].right = &board[boardSize - 1][j+1];
+		board[boardSize -1][j].left = &board[boardSize - 1][j-1];
+		board[boardSize - 1][j].up = &board[boardSize - 2][j];
+		board[boardSize - 1][j].down = NULL;
+	}
+
+	//It sets up the adjacent slots for the slots that are
+	//in the first and the last column, except the slots at the edges.
+	//
+	for(int i = 1; i < boardSize -1; i++){
+		//It sets up the adjacent slots for the slots that are in the first column.
+		//These slots don't have an adjacent element on the left
+		// because they are on the first column of the board
+		board[i][0].right = &board[i][1];
+		board[i][0].up = &board[i-1][0];
+		board[i][0].down = &board[i+1][0];
+		board[i][0].left = NULL;
+
+		//It sets up the adjacent slots for the slots that are in the last column.
+		//These slots don't have an adjacent element on the right
+		// because they are on the last column of the board
+		board[i][boardSize-1].left = &board[i][boardSize-2];
+		board[i][boardSize -1].up = &board[i -1][boardSize-1];
+		board[i][boardSize -1].down = &board[i+1][boardSize -1];
+		board[i][boardSize -1].right = NULL;
+	}
+
+
+		//It sets up the adjacent slots for the slot at position (0,0).
+		//This only has only 2 adjacent slots: right and down
+		board[0][0].right = &board[0][1];
+		board[0][0].down = &board[1][0];
+
+		//It sets up the adjacent slots for the slot at position (0,boardSize -1).
+		//This only has only 2 adjacent slots: left and down
+		board[0][boardSize-1].left = &board[0][boardSize-2];
+		board[0][boardSize -1].down = &board[1][boardSize -1];
+
+		//It sets up the adjacent slots for the slot at position (boarSize -1 ,0).
+		//This only has only 2 adjacent slots: up and right
+		board[boardSize -1][0].right = &board[boardSize -1][1];
+		board[boardSize -1][0].up = &board[boardSize -2][0];
+
+		//It sets up the adjacent slots for the slot at position (boarSize -1 ,boardSize-1).
+		//This only has only 2 adjacent slots: up and left
+		board[boardSize - 1][boardSize-1].up = &board[boardSize-2][boardSize-1];
+		board[boardSize - 1][boardSize -1].left = &board[boardSize -1][boardSize -2];
+
+
+
+
+
+
+
+	//assigns a pointer to slot at position (0, 0)
+	*upLeft = &board[0][0];
+	//assigns pointer of pointer to slot at position (0, boardSize -1)
+	*upRight = &board[0][boardSize -1];
+	//assigns pointer of pointer to slot at position ( boardSize -1,)
+	*downLeft = &board[boardSize -1][0];
+	//assigns pointer of pointer to slot at position (boardSize -1, boardSize -1)
+	*downRight = &board[boardSize -1][boardSize -1];
 }
 
 void getPlayer(struct player *playerGet, int playerNum)
 {
 	char text[20];
 
-	printf("\n\nPlease select a type for player %d by entering a number:\n", playerNum);
+	printf("\n\nPlease select a type for player %d by entering a number:\n", playerNum + 1);		//get player type
 	printf("(1) Elf\n(2) Human\n(3) Ogre\n(4) Wizard\nEnter the choice: ");
 	scanf("%d", &playerGet->type);
+
 
 	while(playerGet->type < 1 || playerGet->type > 4)
 	{
@@ -233,13 +367,11 @@ void getPlayer(struct player *playerGet, int playerNum)
 		scanf("%d", &playerGet->type);
 	}
 
-	playerGet->life = 100;
-	playerGet->tmpStrength = 0;
-	playerGet->tmpMagicSkill = 0;
-	playerGet->tmpDexterity = 0;
+	
+	playerGet->life_points = 100;
 	playerGet->num = playerNum;		//see struct for info
 
-	printf("\n\nPlease enter a name for the player: ");			//maybe check to see if another player already has a certain name?
+	printf("\n\nPlease enter a name for the player: ");			//mget name of player
 	scanf("%s", &text);
 
 	strcpy(playerGet->name, text);
@@ -252,399 +384,324 @@ void assignStats(struct player *playerStat)
 	time_t t;
 	srand((unsigned) time(&t));	
 
-	if(playerStat->type == 1)
+	if(playerStat->type == 1) // if type is elf
 	{
-		playerStat->luck = rand() % 41 + 60;	//[100,60]	//lengthy for bug testing :/
-		playerStat->smartness = rand() % 31 + 70;	//[100,70]
+		playerStat->luck = rand() % 42 + 59;	//[100,60]
+		playerStat->smartness = rand() % 32 + 69;	//[100,70]
 		playerStat->strength = rand() % 50 + 1;	//[50,1]
-		playerStat->magicSkill = rand() % 29 + 51;	//(50,80)
+		playerStat->magicSkill = rand() % 20 + 50;	//(50,80)
 	    playerStat->dexterity = rand() % 100 + 1;	//[100,1] rand() % (max - min + 1) + min
+		playerStat->life_points = 100;
 	}
 	else if(playerStat->type == 2)
 	{
-		//for(int j = 0; )	//I know what to do here, just need PAPER to plan
-		//int a[5], i;
 		time_t t;						//call stat change for tile detection thinger CODE
 		srand((unsigned) time(&t));
+		
+		int sum = 300;
+		
+		playerStat->life_points = 100;
 
-		int attributeList[5] = {1, 2, 3, 4, 5}, i, j, tmp, x, n = 296, dif = 0;
-
-		for(i = 4; i > 0; i--)
+		while(sum >= 300) // for human
 		{
-			j = rand() % i + 0;
-
-			tmp = attributeList[i];
-			attributeList[i] = attributeList[j];		//shuffle the player numbers to be shuffled into struct array game board
-			attributeList[j] = tmp;
-		}
-
-		j = 0;
-
-		for(i = 0; i < 5; i++)			//go through shuffled list of stat types //oops, I think there's a flaw here CODE, maybe just reroll intil TOTAL < 300?
-		{
-			x = attributeList[i];
-
-			if(x == 1)
-			{
-				tmp = playerStat->luck = rand() % (n - dif) + 1;				//CODE modify this to other method   FIX
-			}
-			else if(x == 2)
-			{
-				tmp = playerStat->smartness = rand() % n + 1;
-			}
-			else if(x == 3)
-			{
-				tmp = playerStat->strength = rand() % n + 1;
-			}
-			else if(x == 4)
-			{
-				tmp = playerStat->magicSkill = rand() % n + 1;
-			}
-			else if(x == 5)
-			{
-				tmp = playerStat->dexterity = rand() % n + 1;
-			}
-
-			dif = n;
+			playerStat->smartness = rand() % 100 + 1;
+			playerStat->luck = rand() % 100 + 1;
+			playerStat->strength = rand() % 100 + 1;	// stat for human
+			playerStat->magicSkill = rand() % 100 + 1;
+	   		playerStat->dexterity = rand() % 100 + 1;
+	   		
+	   		sum = (playerStat->smartness) + (playerStat->strength) + (playerStat->magicSkill) + (playerStat->luck) + (playerStat->dexterity);
 		}
 
 	}
-	else if(playerStat->type == 3)
+	else if(playerStat->type == 3) // ogre
 	{
-		playerStat->smartness = rand() % 20;
-		playerStat->luck = rand() % ((50 - playerStat->smartness) + 1);		//lengthy for bug testing :/
-		playerStat->strength = rand() % 21 + 80;
+		int sum = 51;
+		
+		playerStat->life_points = 100;
 		playerStat->magicSkill = 0;
-	    playerStat->dexterity = rand() % 21 + 80;
+		playerStat->strength = rand() % 22 + 79;
+		playerStat->dexterity = rand() % 22 + 79;
+		   
+		while(sum >= 50)
+		{
+			playerStat->smartness = rand() % 21;
+			playerStat->luck = rand() % 50;	//stats for ogre
+						
+			sum = (playerStat->luck) + (playerStat->smartness);
+		}
 	}
-	else
+	else if(playerStat->type == 4) // wizard
 	{
-		playerStat->luck = rand() % 51 + 50;		//lengthy for bug testing :/
-		playerStat->smartness = rand() % 11 + 90;
-		playerStat->strength = rand() % 20 + 1;
-		playerStat->magicSkill = rand() % 21 + 80;
+		playerStat->life_points = 100;
+		playerStat->luck = rand() % 52 + 49;		//stats for wizard
+		playerStat->smartness = rand() % 12 + 89;
+		playerStat->strength = rand() % 21 + 1;
+		playerStat->magicSkill = rand() % 22 + 79;
 	    playerStat->dexterity = rand() % 100 + 1;
 	}
 }
 
-void boardSlots(int (*gameBoard)[20], struct player (*playerBoard)[20], int numSlots,  struct player *nullPlayer)
+void boardSlots(int numPlayers)
 {
 	time_t t;
-	srand((unsigned) time(&t));	
+	srand((unsigned) time(&t));	//fill slot type into slot board randomly (1 - 3); 1 level ground, 2 hill, 3 city
 
-	for(int i = 0; i < numSlots; i++)
+	for(int i = 0; i < BOARD_SIZE; i++)
 	{
-		(*gameBoard)[i] = rand()% 3 + 1;
-		(*playerBoard)[i] = *nullPlayer;
+		for(int j = 0; j < BOARD_SIZE; j++)
+		{
+			board[i][j].slotType = rand() % 3 + 1;
+			
+			for(int c = 0; c < numPlayers; c++)
+			{
+				board[i][j].playerIndexInArray[c] = 8;
+			}
+		}
 	}
 }
 
-void playerSlots(struct player (*playerBoard)[20], int numPlayers, int numSlots, struct player *nullPlayer, struct player *p1, struct player *p2, struct player *p3, struct player *p4, struct player *p5, struct player *p6)
+void playerSlots(int numPlayers, struct player playerArray[])
 { 
-	time_t t;						//call stat change for tile detection thinger CODE
+	time_t t;						
 	srand((unsigned) time(&t));
 
 	int playerIndex[numPlayers], i, j, tmp;
 
 	for(i = 0; i < numPlayers; i++)
 	{
-		playerIndex[i] = i + 1;			//create list of player numbers that are in play
+		playerIndex[i] = i;			//create list of player array index that are in play
 	}
 
-	for(i = numPlayers - 1; i > 0; i--)
+	for(int c = 0; c < numPlayers; c++)
 	{
-		j = rand() % i + 0;
+		int x = 0;
 
-		tmp = playerIndex[i];
-		playerIndex[i] = playerIndex[j];		//shuffle the player numbers to be shuffled into struct array game board
-		playerIndex[j] = tmp;
-	}
-
-	for(i = 0; i < numPlayers; i++)			//shuffle them into struct array game board
-	{
-		TRYAGAIN: tmp = rand() % numSlots;
-
-		if((*playerBoard)[tmp].type == nullPlayer->type)
+		i = rand() % BOARD_SIZE;
+		j = rand() % BOARD_SIZE;
+		while(board[i][j].playerIndexInArray[x] != 8)
 		{
-			if(playerIndex[i] == 1)
-			{
-				(* playerBoard)[tmp] = *p1;
-				p1->slotNum = tmp;
-			}
-			else if(playerIndex[i] == 2)
-			{
-				(*playerBoard)[tmp] = *p2;
-				p2->slotNum = tmp;
-			}
-			else if(playerIndex[i] == 3)
-			{
-				(*playerBoard)[tmp] = *p3;
-				p3->slotNum = tmp;
-			}
-			else if(playerIndex[i] == 4)
-			{
-				(*playerBoard)[tmp] = *p4;
-				p4->slotNum = tmp;
-			}
-			else if(playerIndex[i] == 5)
-			{
-				(*playerBoard)[tmp] = *p5;
-				p5->slotNum = tmp;
-			}
-			else if(playerIndex[i] == 6)
-			{
-				(*playerBoard)[tmp] = *p6;
-				p6->slotNum = tmp;
-			}
-			printf("NUll slot found\n");		//test
-		}
-		else
-		{
-			printf("PLAYER SLOT\n");			//test
-			goto TRYAGAIN;
+			++x;
 		}
 
-		//checkSlot(struct player *slotPlayer, int (*gameBoard)[20], int pIndex)		CODE open this and implement
-	}
-}
+		board[i][j].playerIndexInArray[x] = c;
 
-int checkIfMove(struct player playerBoard[20], int pIndex, int boardSize)	// 1 is no move 2 is move back 3 is move forward 4 is choice
-{
-	boardSize -= 1;
-	if((pIndex == 0 && playerBoard[pIndex + 1].type != 5) || (playerBoard[pIndex + 1].type != 5 && playerBoard[pIndex - 1].type != 5) || (pIndex == boardSize && playerBoard[pIndex - 1].type != 5))
-	{
-		return 1;
-	}
-	else if((pIndex == boardSize && playerBoard[pIndex - 1].type == 5) || (playerBoard[pIndex + 1].type != 5 && playerBoard[pIndex - 1].type == 5))
-	{
-		return 2;
-	}
-	else if((pIndex == 0 && playerBoard[pIndex + 1].type == 5) || (playerBoard[pIndex + 1].type == 5 && playerBoard[pIndex - 1].type != 5))
-	{
-		return 3;
-	}
-	else
-	{
-		return 4;
-	}
-}
+		playerArray[c].row = i;
+		playerArray[c].column = j;
+		playerArray[c].slotType = board[i][j].slotType;
 
-int checkIFAttack(struct player playerBoard[20], int pIndex, int boardSize, int adjacentPlayer)
-{
-	boardSize -= 1;
-
-	if(pIndex == 0 && adjacentPlayer == 1)
-	{
-		return 1;
-	}
-	else if(pIndex == boardSize && adjacentPlayer == 1)
-	{
-		return 2;
-	}
-	else if((pIndex != 0 || pIndex != boardSize) && adjacentPlayer == 2)
-	{
-		return 1;
-	}
-	else if((pIndex != 0 || pIndex != boardSize) && adjacentPlayer == 3)
-	{
-		return 2;
-	}
-	else if((pIndex != 0 || pIndex != boardSize) && adjacentPlayer == 1)
-	{
-		return 3;
-	}
-	else
-	{
-		return 4;//findTarget(playerBoard, pIndex, boardSize);		//CODE implement search algorithm
-	}
-}
-
-int findTarget(struct player playerBoard[20], int pIndex, int boardSize)		//board size already accounted for, return 1 attack (i+1) 2 (i-1) 3(choice)
-{}		//implement search algorithm -> check above player until hit player OR hit (maxSlot - 1) and then check below player until find player OR hit (0)
-		//I may need to use poinetr system to put playerBoard index of attackable players into the main(void) function
-
-void attackPlayer(struct player *attackPlayer, struct player (*playerBoard)[20], int direction, int pIndex)
-{
-	struct player *defendPlayer;	//maybe become argument when introduce search function
-
-	if(direction == 1)				//remove if introduce search
-	{
-		defendPlayer = playerBoard[pIndex - 1];
-	}
-	else
-	{
-		defendPlayer = playerBoard[pIndex + 1];
-	}
-
-	if(defendPlayer->tmpStrength <= 70)
-	{
-		defendPlayer->life = defendPlayer->life - (0.5 * defendPlayer->tmpStrength);
-	}
-	else if(defendPlayer->tmpStrength > 70)
-	{
-		attackPlayer->life = attackPlayer->life - (0.3 * defendPlayer->tmpStrength);
-	}
-}
-
-void movePlayer(struct player *movePlayer, struct player (*playerBoard)[20], struct player nullPlayer, int direction, int pIndex)
-{
-	int newIndex;
-	if(direction == 1)
-	{
-		newIndex = pIndex - 1;
-	}
-	else
-	{
-		newIndex = pIndex + 1;
-	}
-
-	movePlayer->slotNum = newIndex;
-
-	(*playerBoard)[newIndex] = *movePlayer;
-	(*playerBoard)[pIndex] = nullPlayer;
-}
-
-void checkSlot(struct player *slotPlayer, int (*gameBoard)[20], int pIndex)
-{
-	slotPlayer->slotNum = *gameBoard[pIndex];
-	printf("aaefsfsg");
-	if(slotPlayer->slotNum == 1)
-	{
-		printf("\nLevel Ground");
-	}
-	else if(slotPlayer->slotNum == 2)
-	{
-		printf("\nHill");
-		setStat(slotPlayer, slotPlayer->slotNum);
-	}
-	else if(slotPlayer->slotNum == 3)
-	{
-		printf("\nCity");
-		setStat(slotPlayer, slotPlayer->slotNum);
+		setStat(&playerArray[c], playerArray[c].slotType);
 	}
 }
 
 void setStat(struct player *slotPlayer, int slotType)	//cant't go below 0 (ie  not negative)
 {
-	slotPlayer->tmpStrength = slotPlayer->strength;
-	slotPlayer->tmpDexterity = slotPlayer->dexterity;
-	slotPlayer->tmpMagicSkill = slotPlayer->magicSkill;
-
 	if(slotType == 2)
 	{
 		if(slotPlayer->dexterity < 50 )
 		{
-			slotPlayer->tmpStrength -= 10;
+			slotPlayer->strength -= 10;
 		}
 		else if(slotPlayer->dexterity >= 60)
 		{
-			slotPlayer->tmpStrength += 10;
+			slotPlayer->strength += 10;
 		}
 	}
 	else if(slotType == 3)
 	{
 		if(slotPlayer->smartness > 60)
 		{
-			slotPlayer->tmpMagicSkill += 10;
+			slotPlayer->magicSkill += 10;
 		}
 		else if(slotPlayer->smartness <= 50)
 		{
-			slotPlayer->tmpDexterity -= 10;
+			slotPlayer->dexterity -= 10;
 		}
 	}
 
-	if(slotPlayer->tmpStrength < 0)
+	if(slotPlayer->strength < 0)
 	{
-		slotPlayer->tmpStrength = 0;
+		slotPlayer->strength = 0;
 	}
 
-	if(slotPlayer->tmpDexterity < 0)
+	if(slotPlayer->dexterity < 0)
 	{
-		slotPlayer->tmpDexterity = 0;
+		slotPlayer->dexterity = 0;
 	}
 	
-	if(slotPlayer->tmpMagicSkill < 0)
+	if(slotPlayer->magicSkill < 0)
 	{
-		slotPlayer->tmpMagicSkill = 0;
+		slotPlayer->magicSkill = 0;
 	}
 
 }
 
-void findDead(struct player (*playerBoard)[20], struct player *nullPlayer, int numSlots)
+void checkIfMove(struct player *currPlayer, bool *up, bool *down, bool *left, bool *right, int numPlayers)
 {
-	for(int i = 0; i < numSlots; i++)
-	{	
-		if(playerBoard[i]->type != 5)
+	if(!(currPlayer->row + 1 >= numPlayers))
+	{
+		*down = true;
+	}
+
+	if(!(currPlayer->row - 1 <= -1))
+	{
+		*up = true;
+	}
+
+	if(!(currPlayer->column + 1 >= numPlayers))
+	{
+		*right = true;
+	}
+
+	if(!(currPlayer->column - 1 <= -1))
+	{
+		*left = true;
+	}
+}
+
+void movePlayer(struct player *player, int moveChoice, int playerNum)
+{
+	resetStat(player);
+
+	int x, i = player->row, j = player->column;
+
+	while(board[i][j].playerIndexInArray[x] != playerNum)
+	{
+		x++;
+	}
+
+	board[i][j].playerIndexInArray[x];
+
+	int r = 0;														//1 up 2 down 3 left 4 right
+
+	if(moveChoice == 1)
+	{
+		player->row -= 1;
+
+		while(board[i - 1][j].playerIndexInArray[r] != 8)
 		{
-			printf("WHATYIPPIKEAYAE");
-			if(playerBoard[i]->life <= 0)
+			++r;
+		}
+
+		board[i - 1][j].playerIndexInArray[r] = playerNum;
+	}
+
+	if(moveChoice == 2)
+	{
+		player->row += 1;
+
+		while(board[i + 1][j].playerIndexInArray[r] != 8)
+		{
+			++r;
+		}
+
+		board[i + 1][j].playerIndexInArray[r] = playerNum;
+	}
+
+	if(moveChoice == 3)
+	{
+		player->column -= 1;
+
+		while(board[i][j - 1].playerIndexInArray[r] != 8)
+		{
+			++r;
+		}
+
+		board[i][j - 1].playerIndexInArray[r] = playerNum;
+	}
+
+	if(moveChoice == 4)
+	{
+		player->column += 1;
+
+		while(board[i][j + 1].playerIndexInArray[r] != 8)
+		{
+			++r;
+		}
+
+		board[i][j - 1].playerIndexInArray[r] = playerNum;
+	}
+
+	//get new type
+	//change stat
+}
+
+void resetStat(struct player *slotPlayer)
+{
+	int slotType = slotPlayer->slotType;
+
+	if(slotType == 2)
+	{
+		if(slotPlayer->dexterity < 50 )
+		{
+			slotPlayer->strength -= 10;
+		}
+		else if(slotPlayer->dexterity >= 60)
+		{
+			slotPlayer->strength += 10;
+		}
+	}
+	else if(slotType == 3)
+	{
+		if(slotPlayer->smartness > 60)
+		{
+			slotPlayer->magicSkill += 10;
+		}
+		else if(slotPlayer->smartness <= 50)
+		{
+			slotPlayer->dexterity -= 10;
+		}
+	}
+}
+
+/*	print playerIndexInArray for each slot
+	printf("\n");
+	for(int i = 0; i < BOARD_SIZE; i++)
+	{
+		for(int j = 0; j < BOARD_SIZE; j++)
+		{	
+			for(int c = 0; c < numPlayers; c++)
 			{
-				removePlayer(playerBoard, nullPlayer, i);
-				printf("\n\nPlayer %d has been killed!", playerBoard[i]->num);
-				printf("ISTHISPROGRAMBROKEN");
+				printf("%d ", board[i][j].playerIndexInArray[c]);
 			}
+			printf("  ");
 		}
+		printf("\n");
 	}
+*/ 
 
-	
-}
-
-void removePlayer(struct player (*playerBoard)[20], struct player *nullPlayer, int playerPosition)
-{
-	*playerBoard[playerPosition] = *nullPlayer;
-}
-
-void printPlayerStatus(struct player (*playerBoard)[20], int numSlots)
-{
+/* print slot type
 	printf("\n\n");
-
-	for(int i = 0; i < numSlots; i++)
+	for(int i = 0; i < BOARD_SIZE; i++)
 	{
-		if(playerBoard[i]->type != 5)
+		for(int j = 0; j < BOARD_SIZE; j++)
 		{
-			printf("%s", playerBoard[i]->name);
-
-			switch(playerBoard[i]->type){
-				case 1 : printf(" (Elf, "); break;
-				case 2 : printf(" (Human, "); break;
-				case 3 : printf(" (Ogre, "); break;
-				case 4 : printf(" (Wizard, "); break;
-				default : break;
-			}
-
-			printf("%d)", playerBoard[i]->life);
+			printf("%d ", board[i][j].slotType);
 		}
-	}
-}
 
-void findWinner(struct player (*playerBoard)[20], int numSlots)
-{
-	for(int i = 0; i < numSlots; i++)
+		printf("\n");
+	}
+*/
+
+/*print player location info
+		printf("\n\n");
+	for(int i = 0; i < numPlayers; i++)
 	{
-		if(playerBoard[i]->type != 5)
-		{
-			printf("\n\nCongratulations, player %d! You are the winner!", playerBoard[i]->num);
-		}
+		printf("%d %d (%d,%d)", i, playerArray[i].slotType, playerArray[i].row, playerArray[i].column);
+
+		printf("\n");
 	}
-}
+*/
 
 /*
-for(int ko = 0; ko < numSlots; ko++)		//use to check stats etc. of players BUGTESING
-{
-	if(playerBoard[ko].type != 5)
-	{
-		printf("Num %d\n", playerBoard[ko].num);
-		printf("Type %d\n", playerBoard[ko].type);
-		printf("Life %d\n", playerBoard[ko].life);
-		printf("Smartness %d\n", playerBoard[ko].smartness);
-		printf("Strength %d\n", playerBoard[ko].strength);
-		printf("tmpStrength %d\n", playerBoard[ko].tmpStrength);
-		printf("magicSkill %d\n", playerBoard[ko].magicSkill);
-		printf("tmpMagicSkill %d\n", playerBoard[ko].tmpMagicSkill);
-		printf("Luck %d\n", playerBoard[ko].luck);
-		printf("Dexterity %d\n", playerBoard[ko].dexterity);
-		printf("tmpDexterity %d\n", playerBoard[ko].tmpDexterity);
-		printf("slotNum %d\n", playerBoard[ko].slotNum);
-	}
 	printf("\n\n");
-}*/
+	for(int i = 0; i < numPlayers; i++)
+	{
+		printf("%d\n %d\n %d\n %d\n %d\n %d\n", playerArray[i].smartness, playerArray[i].strength, playerArray[i].magicSkill, playerArray[i].dexterity, playerArray[i].life_points, playerArray[i].luck);
+		printf("\n\n");
+	}
+
+*/
+
+
+//instead of storing player data in board, just store slot type and coordinates in player slot; then find if player(s) correspond to slots being searched for attacking etc.?
